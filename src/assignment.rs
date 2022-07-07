@@ -3,13 +3,15 @@ use std::{ops::Range, time::Duration};
 use itertools::Itertools;
 use rand::{prelude::SliceRandom, Rng};
 
-use crate::search::{Context, WhackerIdx};
+use crate::{
+    search::{Context, WhackerIdx},
+    whacker::Whacker,
+};
 
 /// An `Assignment` of [`Whacker`]s to players
 #[derive(Debug, Clone)]
 pub struct Assignment {
-    // TODO: not pub
-    pub whackers: Vec<WhackerIdx>,
+    whackers: Vec<WhackerIdx>,
     /// Each player has two hands, and each hand can access some number of boomwhackers
     players: Vec<(Hand, Hand)>,
     /// The current score of the `Assignment`
@@ -88,6 +90,20 @@ impl Assignment {
 
     pub fn score(&self) -> f64 {
         self.score
+    }
+
+    pub fn whackers(&self, ctx: &Context) -> Vec<(Vec<Whacker>, Vec<Whacker>)> {
+        let whackers_in_hand = |hand: &Hand| -> Vec<Whacker> {
+            self.whackers[hand.range.clone()]
+                .iter()
+                .map(|idx| ctx.whacks[*idx].0)
+                .collect_vec()
+        };
+
+        self.players
+            .iter()
+            .map(|(l_hand, r_hand)| (whackers_in_hand(l_hand), whackers_in_hand(r_hand)))
+            .collect_vec()
     }
 }
 

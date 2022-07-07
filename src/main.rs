@@ -27,8 +27,32 @@ fn main() {
     }
     println!("{} boomwhackers required", whacks.len());
 
+    println!();
+
     // Start searching for good assignments
-    search(&whacks);
+    let result = search(&whacks);
+    let max_num_whackers_in_left_hand =
+        result.whackers.iter().map(|(l, _r)| l.len()).max().unwrap();
+    for (left, right) in &result.whackers {
+        for _ in 0..(max_num_whackers_in_left_hand - left.len()) {
+            print!("     ");
+        }
+        for w in left {
+            print!("{:>3}  ", w.to_string());
+        }
+        print!("|");
+        for w in right {
+            print!("  {:>3}", w.to_string());
+        }
+        println!();
+    }
+
+    println!();
+
+    println!(
+        "Found best score of {:.3} in {:.2?}",
+        result.best_score, result.duration
+    );
 }
 
 /// Read a music XML file, possibly decompressing it if necessary

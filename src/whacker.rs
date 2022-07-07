@@ -1,5 +1,7 @@
+use std::fmt::{Debug, Display, Formatter};
+
 /// Representation of a single boomwhacker
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Whacker {
     /// Semitones above C0
@@ -39,6 +41,18 @@ impl Whacker {
 
         let note_name = NOTE_NAMES_FLATS[semis_above_nearest_c as usize];
         format!("{note_name}{octave}")
+    }
+}
+
+impl Display for Whacker {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl Debug for Whacker {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Whacker({})", self)
     }
 }
 
