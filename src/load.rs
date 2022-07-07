@@ -81,8 +81,11 @@ fn add_whack(
     whacks: &mut HashMap<Whacker, Vec<Duration>>,
 ) -> Option<()> {
     // Check that multiple voicings aren't being used
-    let voice = elem.find("voice")?.text();
-    assert_eq!(voice, "1", "Multiple voices aren't implemented yet");
+    let voice = match elem.find("voice") {
+        Some(voice_elem) => voice_elem.text().parse::<usize>().ok()?,
+        None => 1, // If no voice tag is given, assign it to the first voice
+    };
+    assert_eq!(voice, 1, "Multiple voices aren't implemented yet");
 
     // If this is the first note/rest in a chord, compute the start time of the
     // next note to come after it
@@ -97,7 +100,7 @@ fn add_whack(
 
     // Actually add the note
     match elem.find("pitch") {
-        // If the note has a pitch, work out which boomwhacker this note
+        // If the 'note' has a pitch, work out which boomwhacker this note
         // actually plays and add its start
         Some(pitch_elem) => {
             let octave = pitch_elem.find("octave")?.text().parse::<i8>().ok()?;
