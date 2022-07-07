@@ -1,0 +1,10 @@
+[package]
+name = "boomwhackers"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zip = "0.6"
+elementtree = "0.7"
+itertools = "0.10"
+anyhow = "1.0"
