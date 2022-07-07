@@ -8,12 +8,18 @@ use crate::{
     whacker::Whacker,
 };
 
-/// An `Assignment` of [`Whacker`]s to players
+/// An assignment of [`Whacker`]s to hands.  We don't worry about combining the hands yet; that's
+/// up to the next stage of the search.
 #[derive(Debug, Clone)]
-pub struct Assignment {
+pub struct HandAssignment {
+    /// A flat list representing all the [`Hand`]s' [`Whacker`] assignments concatenated together.
+    ///
+    /// Storing them as a single flat list makes [`Self::make_swap`] substantially easier and more
+    /// efficient (since we can uniformly sample two whackers from this list).  Also we use
+    /// [`WhackerIdx`]s instead of [`Whacker`]s for more efficient lookups.
     whackers: Vec<WhackerIdx>,
-    /// Each player has two hands, and each hand can access some number of boomwhackers
-    players: Vec<(Hand, Hand)>,
+    /// Each [`Hand`] is assigned to some sub-[`Range`] of `whackers`
+    hands: Vec<Hand>,
     /// The current score of the `Assignment`
     score: f64,
 }
@@ -26,12 +32,6 @@ struct Hand {
     range: Range<usize>,
 }
 
-// #[derive(Debug, Clone, Copy)]
-// enum Side {
-//     Left = 0,
-//     Right = 1,
-// }
-//
 // /// A representation storing enough information to undo a `Swap` of two boomwhackers in an
 // /// [`Assignment`].
 // #[derive(Debug)]
@@ -41,9 +41,10 @@ struct Hand {
 //     swap_idx_2: usize,
 // }
 
-impl Assignment {
+impl HandAssignment {
     /// Create a new `Assignment` where all the [`Whacker`]s are randomly assigned.
-    pub fn random(ctx: &Context, rng: &mut impl Rng) -> Self {
+    pub fn random(num_hands: usize, ctx: &Context, rng: &mut impl Rng) -> Self {
+        // Shuffle the `WhackerIdx`s to create the random starting assignment
         let mut whackers = ctx
             .whacks
             .iter_enumerated()
@@ -51,29 +52,28 @@ impl Assignment {
             .collect_vec();
         whackers.shuffle(rng);
 
-        // Split the whackers up into players.  Each player plays at most four boomwhackers, with
-        // those whackers distributed evenly between their hands
-        let mut players = Vec::new();
-        let mut next_player_start_idx = 0;
-        while next_player_start_idx < whackers.len() {
-            // Take up to four more whackers, and split them evenly between left and right hands
-            let whackers_for_player = usize::min(4, whackers.len() - next_player_start_idx);
-            // Determine the ranges for left/right hands
-            let idx_left = next_player_start_idx + 0;
-            let idx_mid = next_player_start_idx + whackers_for_player / 2;
-            let idx_right = next_player_start_idx + whackers_for_player;
-            // Add the player
-            players.push((
-                Hand::new(&whackers, idx_left..idx_mid, ctx),
-                Hand::new(&whackers, idx_mid..idx_right, ctx),
+        // Split the assignment up into hands, as evenly as possible.  I.e. we assign the same
+        // number of whackers to all the hands, with some hands taking one extra.
+        let base_whackers_per_hand = whackers.len() / num_hands;
+        let num_hands_with_one_extra = whackers.len() % num_hands;
+
+        let mut hands = Vec::new();
+        let mut whackers_allocated = 0;
+        for i in 0..num_hands {
+            // Give the spare whackers to the first `num_hands_with_one_extra` hands
+            let num_whackers =
+                base_whackers_per_hand + if i < num_hands_with_one_extra { 1 } else { 0 };
+            hands.push(Hand::new(
+                &whackers,
+                whackers_allocated..whackers_allocated + num_whackers,
+                ctx,
             ));
-            // Consume these whackers
-            next_player_start_idx += whackers_for_player;
+            whackers_allocated += num_whackers;
         }
 
         Self {
-            score: total_score(&players, &whackers, ctx),
-            players,
+            score: hands.iter().map(|hand| hand.score(&whackers, ctx)).sum(),
+            hands,
             whackers,
         }
     }
@@ -85,33 +85,28 @@ impl Assignment {
         let swap_idx_2 = rng.gen_range(0..self.whackers.len());
 
         self.whackers.swap(swap_idx_1, swap_idx_2);
-        self.score = total_score(&self.players, &self.whackers, ctx);
+        self.score = self
+            .hands
+            .iter()
+            .map(|hand| hand.score(&self.whackers, ctx))
+            .sum();
     }
 
     pub fn score(&self) -> f64 {
         self.score
     }
 
-    pub fn whackers(&self, ctx: &Context) -> Vec<(Vec<Whacker>, Vec<Whacker>)> {
-        let whackers_in_hand = |hand: &Hand| -> Vec<Whacker> {
-            self.whackers[hand.range.clone()]
-                .iter()
-                .map(|idx| ctx.whacks[*idx].0)
-                .collect_vec()
-        };
-
-        self.players
+    pub fn whackers(&self, ctx: &Context) -> Vec<Vec<Whacker>> {
+        self.hands
             .iter()
-            .map(|(l_hand, r_hand)| (whackers_in_hand(l_hand), whackers_in_hand(r_hand)))
+            .map(|hand| {
+                self.whackers[hand.range.clone()]
+                    .iter()
+                    .map(|idx| ctx.whacks[*idx].0)
+                    .collect_vec()
+            })
             .collect_vec()
     }
-}
-
-fn total_score(players: &[(Hand, Hand)], whackers: &[WhackerIdx], ctx: &Context) -> f64 {
-    players
-        .iter()
-        .map(|(left, right)| left.score(&whackers, ctx) + right.score(&whackers, ctx))
-        .sum()
 }
 
 impl Hand {

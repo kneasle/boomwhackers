@@ -29,11 +29,17 @@ fn main() {
 
     println!();
 
-    // Start searching for good assignments
-    let result = search(&whacks);
-    let max_num_whackers_in_left_hand =
-        result.whackers.iter().map(|(l, _r)| l.len()).max().unwrap();
-    for (left, right) in &result.whackers {
+    // Start searching for good assignments (for 14 hands)
+    // TODO: Make number of hands no longer hard-coded
+    let result = search(14, &whacks);
+    let max_num_whackers_in_left_hand = result
+        .whackers
+        .iter()
+        .step_by(2)
+        .map(|l| l.len())
+        .max()
+        .unwrap();
+    for (left, right) in result.whackers.iter().tuples() {
         for _ in 0..(max_num_whackers_in_left_hand - left.len()) {
             print!("     ");
         }
