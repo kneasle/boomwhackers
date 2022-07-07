@@ -3,16 +3,23 @@ use std::{
     time::{Duration, Instant},
 };
 
+use itertools::Itertools;
+use rand::prelude::*;
+
 use crate::{assignment::Assignment, whacker::Whacker};
 
 pub fn search(whacks: &HashMap<Whacker, Vec<Duration>>) -> Assignment {
     // Allow `Whacker`s to be referenced by numerical `WhackerIdx`s, which are assigned
     // contiguously from 0.
-    let whacks: WhackerVec<_> = whacks.iter().map(|(w, hits)| (*w, hits.clone())).collect();
+    let whacks: WhackerVec<_> = whacks
+        .iter()
+        .sorted_by_key(|(w, _hits)| *w) // Sort the whackers so that the search is deterministic
+        .map(|(w, hits)| (*w, hits.clone()))
+        .collect();
     let ctx = Context { whacks };
 
     // Create an initial random `Assignment`
-    let mut rng = rand::thread_rng();
+    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
 
     let start = Instant::now();
     let mut assignment = Assignment::random(&ctx, &mut rng);
@@ -27,7 +34,7 @@ pub fn search(whacks: &HashMap<Whacker, Vec<Duration>>) -> Assignment {
         }
     }
     println!(
-        "{:>7.3?} in {:.2?} :: {:?}",
+        "{:>7.3?} in {:>9.2?} :: {:?}",
         assignment.score(),
         start.elapsed(),
         assignment.whackers
