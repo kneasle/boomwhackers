@@ -4,7 +4,7 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
 
-use crate::Whacker;
+use crate::whacker::Whacker;
 
 pub(crate) fn load_whacks(
     tree: elementtree::Element,
