@@ -2,7 +2,11 @@ use std::{fs::File, io::Read, path::PathBuf};
 
 use itertools::Itertools;
 
+use crate::search::search;
+
+mod assignment;
 mod load;
+mod search;
 mod whacker;
 
 fn main() {
@@ -22,6 +26,9 @@ fn main() {
         println!("{:>3}: {:.2?}", whacker.name(), times);
     }
     println!("{} boomwhackers required", whacks.len());
+
+    // Start searching for good assignments
+    search(&whacks);
 }
 
 /// Read a music XML file, possibly decompressing it if necessary
