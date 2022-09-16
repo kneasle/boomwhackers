@@ -7,7 +7,7 @@ use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use rand::prelude::*;
 
-use crate::{assignment::HandAssignment, whacker::Whacker};
+use crate::{assignment::HandAssignment, music_xml::Timestamp, whacker::Whacker};
 
 #[derive(Debug)]
 pub struct SearchResult {
@@ -17,7 +17,7 @@ pub struct SearchResult {
     pub duration: Duration,
 }
 
-pub fn search(num_hands: usize, whacks: &HashMap<Whacker, Vec<Duration>>) -> SearchResult {
+pub fn search(num_hands: usize, whacks: &HashMap<Whacker, Vec<Timestamp>>) -> SearchResult {
     let start = Instant::now();
 
     // Allow `Whacker`s to be referenced by numerical `WhackerIdx`s, which are assigned
@@ -75,7 +75,7 @@ fn gradient_ascent(
 /// Immutable context for a search
 #[derive(Debug)]
 pub struct Context {
-    pub whacks: WhackerVec<(Whacker, Vec<Duration>)>,
+    pub whacks: WhackerVec<(Whacker, Vec<Timestamp>)>,
 }
 
 index_vec::define_index_type! { pub struct WhackerIdx = u8; }

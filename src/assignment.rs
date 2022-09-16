@@ -1,9 +1,10 @@
-use std::{ops::Range, time::Duration};
+use std::ops::Range;
 
 use itertools::Itertools;
 use rand::{prelude::SliceRandom, Rng};
 
 use crate::{
+    music_xml::Timestamp,
     search::{Context, WhackerIdx},
     whacker::Whacker,
 };
@@ -147,10 +148,10 @@ fn score_for_hand(whackers_in_hand: &[WhackerIdx], ctx: &Context) -> f64 {
         .iter()
         .position_min_by_key(|idx| ctx.whacks[**idx].1[0])
         .unwrap(); // Can't panic because early return guarantees >1 whacker
-    let mut last_whack_time = Duration::ZERO;
+    let mut last_whack_time = Timestamp::ZERO;
     loop {
         // Determine which boomwhacker is the next to play
-        let mut best_next_time = Duration::MAX;
+        let mut best_next_time = Timestamp::MAX;
         let mut next_iter_idx = None;
         for (iter_idx, times) in whack_time_iterators.iter_mut().enumerate() {
             if let Some(&&next_time) = times.peek() {
@@ -173,7 +174,7 @@ fn score_for_hand(whackers_in_hand: &[WhackerIdx], ctx: &Context) -> f64 {
 
         // Update score if this hit requires us to switch boomwhackers
         if last_played_iter_idx != next_iter_idx {
-            let mut time_diff = (best_next_time - last_whack_time).as_secs_f64();
+            let mut time_diff = last_whack_time.secs_until(best_next_time);
             if time_diff < 0.01 {
                 time_diff = 0.01;
             }

@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::Context;
+use ordered_float::OrderedFloat;
 
 use crate::whacker::Whacker;
 
@@ -17,7 +18,7 @@ use crate::whacker::Whacker;
 #[derive(Debug)]
 pub struct MusicXmlScore {
     tree: elementtree::Element,
-    pub whacks: HashMap<Whacker, Vec<Duration>>, // TODO: Not pub
+    pub whacks: HashMap<Whacker, Vec<Timestamp>>, // TODO: Not pub
 }
 
 ///////////////////
@@ -81,11 +82,11 @@ impl MusicXmlScore {
 
 /// Walk a tree of XML [`Element`](elementtree::Element)s and determine at what times each note is
 /// played.
-fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Whacker, Vec<Duration>>> {
-    let mut whacks = HashMap::<Whacker, Vec<Duration>>::new();
+fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Whacker, Vec<Timestamp>>> {
+    let mut whacks = HashMap::<Whacker, Vec<Timestamp>>::new();
 
     // Stores `(<duration of new bpm>, <new bpm>)`
-    let mut bpm_changes = Vec::<(Duration, f64)>::new();
+    let mut bpm_changes = Vec::<(Timestamp, f64)>::new();
     for (part_idx, part) in tree.find_all("part").enumerate() {
         // MusicXML expresses all its note values as an integer multiple of some 'division' value
         // (presumably to avoid floating point errors).  For each part, this is stored in the
@@ -98,8 +99,8 @@ fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Whacker, V
         })?;
 
         // Extract the note names
-        let mut current_chord_start = Duration::ZERO;
-        let mut next_chord_start = Duration::ZERO;
+        let mut current_chord_start = Timestamp::ZERO;
+        let mut next_chord_start = Timestamp::ZERO;
         for (measure_idx, measure) in part.children().enumerate() {
             let measure_name = format!("measure {} of part {}", measure_idx + 1, part_idx + 1);
             assert_eq!(measure.tag().name(), "measure");
@@ -148,10 +149,10 @@ fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Whacker, V
 fn add_whack(
     elem: &elementtree::Element,
     divs_per_beat: usize,
-    bpm_changes: &Vec<(Duration, f64)>,
-    next_chord_start: &mut Duration,
-    current_chord_start: &mut Duration,
-    whacks: &mut HashMap<Whacker, Vec<Duration>>,
+    bpm_changes: &Vec<(Timestamp, f64)>,
+    next_chord_start: &mut Timestamp,
+    current_chord_start: &mut Timestamp,
+    whacks: &mut HashMap<Whacker, Vec<Timestamp>>,
 ) -> Option<()> {
     // Check that multiple voicings aren't being used
     let voice = match elem.find("voice") {
@@ -168,7 +169,7 @@ fn add_whack(
         // We're starting a chord (which may have only one note), so mark that
         // the *next* note will come after this one
         *current_chord_start = *next_chord_start;
-        *next_chord_start += note_duration;
+        next_chord_start.secs.0 += note_duration.as_secs_f64();
     }
 
     // Actually add the note
@@ -208,8 +209,8 @@ fn divisions_per_beat(part_elem: &elementtree::Element) -> Option<usize> {
 fn note_duration(
     elem: &elementtree::Element,
     divs_per_beat: usize,
-    bpm_changes: &Vec<(Duration, f64)>,
-    next_chord_start: Duration,
+    bpm_changes: &Vec<(Timestamp, f64)>,
+    next_chord_start: Timestamp,
 ) -> Option<Duration> {
     let num_divs_in_note = elem.find("duration")?.text().parse::<u32>().ok()?;
     // Get the BPM at this note, so we know how long each `division` is
@@ -222,4 +223,30 @@ fn note_duration(
     let div_duration = Duration::from_secs_f64(60.0 / current_bpm / divs_per_beat as f64);
     let note_duration = div_duration * num_divs_in_note;
     Some(note_duration)
+}
+
+/// Indication of a point in time where a note starts
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Timestamp {
+    secs: OrderedFloat<f64>,
+}
+
+impl Timestamp {
+    pub const ZERO: Self = Timestamp {
+        secs: OrderedFloat(0.0),
+    };
+
+    pub const MAX: Self = Timestamp {
+        secs: OrderedFloat(f64::MAX),
+    };
+
+    pub fn secs_until(self, other: Self) -> f64 {
+        other.secs.0 - self.secs.0
+    }
+}
+
+impl std::fmt::Debug for Timestamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:>6.2}s", self.secs)
+    }
 }
