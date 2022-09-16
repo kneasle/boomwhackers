@@ -14,8 +14,7 @@ mod music_xml;
 fn main() -> anyhow::Result<()> {
     // Get the input file path
     let input_file_path: PathBuf = std::env::args()
-        .skip(1)
-        .next()
+        .nth(1)
         .expect("Expected first arg to be the file-name")
         .into();
     // Load the MusicXML file and extract the whacks

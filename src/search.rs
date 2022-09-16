@@ -42,7 +42,7 @@ pub fn search(num_hands: usize, whacks: &HashMap<Note, Vec<Timestamp>>) -> Searc
     for hand in &mut whacker_assignment {
         hand.sort();
     }
-    whacker_assignment.sort_by_key(|whackers_in_hand| whackers_in_hand.first().map(|x| *x));
+    whacker_assignment.sort_by_key(|whackers_in_hand| whackers_in_hand.first().copied());
 
     SearchResult {
         hand_assignment: whacker_assignment,

@@ -149,7 +149,7 @@ fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Note, Vec<
 fn add_whack(
     elem: &elementtree::Element,
     divs_per_beat: usize,
-    bpm_changes: &Vec<(Timestamp, f64)>,
+    bpm_changes: &[(Timestamp, f64)],
     next_chord_start: &mut Timestamp,
     current_chord_start: &mut Timestamp,
     whacks: &mut HashMap<Note, Vec<Timestamp>>,
@@ -209,7 +209,7 @@ fn divisions_per_beat(part_elem: &elementtree::Element) -> Option<usize> {
 fn note_duration(
     elem: &elementtree::Element,
     divs_per_beat: usize,
-    bpm_changes: &Vec<(Timestamp, f64)>,
+    bpm_changes: &[(Timestamp, f64)],
     next_chord_start: Timestamp,
 ) -> Option<Duration> {
     let num_divs_in_note = elem.find("duration")?.text().parse::<u32>().ok()?;
