@@ -1,14 +1,14 @@
 use std::fmt::{Debug, Display, Formatter};
 
-/// Representation of a single boomwhacker
+/// Representation of the note to which a single boomwhacker is tuned
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct Whacker {
+pub struct Note {
     /// Semitones above C0
     semis_above_c0: i8,
 }
 
-impl Whacker {
+impl Note {
     pub fn from_note(octave: i8, note_name: &str, alter: i8) -> Option<Self> {
         let note_semitones_from_c = match note_name {
             "C" => 0i8,
@@ -44,13 +44,13 @@ impl Whacker {
     }
 }
 
-impl Display for Whacker {
+impl Display for Note {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name())
     }
 }
 
-impl Debug for Whacker {
+impl Debug for Note {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Whacker({})", self)
     }

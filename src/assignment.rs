@@ -5,8 +5,8 @@ use rand::{prelude::SliceRandom, Rng};
 
 use crate::{
     music_xml::Timestamp,
+    note::Note,
     search::{Context, WhackerIdx},
-    whacker::Whacker,
 };
 
 /// An assignment of [`Whacker`]s to hands.  We don't worry about combining the hands yet; that's
@@ -97,7 +97,7 @@ impl HandAssignment {
         self.score
     }
 
-    pub fn whackers(&self, ctx: &Context) -> Vec<Vec<Whacker>> {
+    pub fn whackers(&self, ctx: &Context) -> Vec<Vec<Note>> {
         self.hands
             .iter()
             .map(|hand| {

@@ -5,8 +5,8 @@ use itertools::Itertools;
 use crate::music_xml::MusicXmlScore;
 
 mod assignment;
+mod note;
 mod search;
-mod whacker;
 
 mod assign;
 mod music_xml;

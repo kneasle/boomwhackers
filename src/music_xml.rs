@@ -12,13 +12,13 @@ use std::{
 use anyhow::Context;
 use ordered_float::OrderedFloat;
 
-use crate::whacker::Whacker;
+use crate::note::Note;
 
 /// Representation of a loaded MusicXML file.
 #[derive(Debug)]
 pub struct MusicXmlScore {
     tree: elementtree::Element,
-    pub whacks: HashMap<Whacker, Vec<Timestamp>>, // TODO: Not pub
+    pub whacks: HashMap<Note, Vec<Timestamp>>, // TODO: Not pub
 }
 
 ///////////////////
@@ -82,8 +82,8 @@ impl MusicXmlScore {
 
 /// Walk a tree of XML [`Element`](elementtree::Element)s and determine at what times each note is
 /// played.
-fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Whacker, Vec<Timestamp>>> {
-    let mut whacks = HashMap::<Whacker, Vec<Timestamp>>::new();
+fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Note, Vec<Timestamp>>> {
+    let mut whacks = HashMap::<Note, Vec<Timestamp>>::new();
 
     // Stores `(<duration of new bpm>, <new bpm>)`
     let mut bpm_changes = Vec::<(Timestamp, f64)>::new();
@@ -152,7 +152,7 @@ fn add_whack(
     bpm_changes: &Vec<(Timestamp, f64)>,
     next_chord_start: &mut Timestamp,
     current_chord_start: &mut Timestamp,
-    whacks: &mut HashMap<Whacker, Vec<Timestamp>>,
+    whacks: &mut HashMap<Note, Vec<Timestamp>>,
 ) -> Option<()> {
     // Check that multiple voicings aren't being used
     let voice = match elem.find("voice") {
@@ -184,7 +184,7 @@ fn add_whack(
                 None => 0,
             };
             whacks
-                .entry(Whacker::from_note(octave, note_name, alter)?)
+                .entry(Note::from_note(octave, note_name, alter)?)
                 .or_default()
                 .push(*current_chord_start);
         }
