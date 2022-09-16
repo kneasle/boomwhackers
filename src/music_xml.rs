@@ -1,14 +1,87 @@
-//! Code from extracting whack times from a MusicXML tree
+//! Code for loading/modifying/saving MusicXML files.
 
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+    fs::File,
+    io::{Cursor, Read},
+    path::Path,
+    time::Duration,
+};
 
 use anyhow::Context;
 
 use crate::whacker::Whacker;
 
-pub(crate) fn load_whacks(
+/// Representation of a loaded MusicXML file.
+#[derive(Debug)]
+pub struct MusicXmlScore {
     tree: elementtree::Element,
-) -> anyhow::Result<HashMap<Whacker, Vec<Duration>>> {
+    pub whacks: HashMap<Whacker, Vec<Duration>>, // TODO: Not pub
+}
+
+///////////////////
+// READING FILES //
+///////////////////
+
+impl MusicXmlScore {
+    /// Load a `MusicXmlScore` from a file.
+    pub fn load_file(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let path = path.as_ref();
+        let mut raw_bytes = Vec::new();
+        File::open(&path)
+            .context(format!("Error loading {path:?}"))?
+            .read_to_end(&mut raw_bytes)
+            .context(format!("Error reading {path:?}"))?;
+        let extension = path
+            .extension()
+            .context("Can't read a file with no extension")?;
+        Self::from_raw_bytes(&raw_bytes, extension)
+    }
+
+    /// Reads a `MusicXmlScore` from some bytes, using the given `extension` to determine whether
+    /// or not those bytes are compressed.
+    pub fn from_raw_bytes(bytes: &[u8], extension: &OsStr) -> anyhow::Result<Self> {
+        let mut decompressed_bytes = Vec::new();
+        let xml_bytes = match extension.to_str() {
+            Some("xml") => bytes, // No decompression necessary
+            Some("mxl") => {
+                let mut archive = zip::ZipArchive::new(Cursor::new(bytes))
+                    .context("Error extracting the zip archive")?;
+                let xml_file_name = archive
+                    .file_names()
+                    .find(|f| !f.contains('/')) // First file in the root directory of the archive
+                    .context("MusicXML archive should have at least one file")?
+                    .to_owned();
+                let mut xml_file = archive
+                    .by_name(&xml_file_name)
+                    .context("MusicXML file not found in the archive")?;
+                xml_file.read_to_end(&mut decompressed_bytes).unwrap();
+                &decompressed_bytes
+            }
+            _ => {
+                return Err(anyhow::Error::msg(format!(
+                    "Unknown file extension {extension:?} for MusicXML."
+                )));
+            }
+        };
+        Self::from_xml_bytes(xml_bytes)
+    }
+
+    /// Read a `MusicXmlScore` from bytes of XML (which may have been uncompressed from the file).
+    fn from_xml_bytes(xml_bytes: &[u8]) -> anyhow::Result<Self> {
+        let tree =
+            elementtree::Element::from_reader(xml_bytes).context("File contains invalid XML")?;
+        Ok(Self {
+            whacks: load_whacks(&tree)?,
+            tree,
+        })
+    }
+}
+
+/// Walk a tree of XML [`Element`](elementtree::Element)s and determine at what times each note is
+/// played.
+fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Whacker, Vec<Duration>>> {
     let mut whacks = HashMap::<Whacker, Vec<Duration>>::new();
 
     // Stores `(<duration of new bpm>, <new bpm>)`

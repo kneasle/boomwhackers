@@ -12,7 +12,7 @@ use crate::{assignment::HandAssignment, whacker::Whacker};
 #[derive(Debug)]
 pub struct SearchResult {
     // pub whackers: Vec<(Vec<Whacker>, Vec<Whacker>)>,
-    pub whackers: Vec<Vec<Whacker>>,
+    pub hand_assignment: Vec<Vec<Whacker>>,
     pub best_score: f64,
     pub duration: Duration,
 }
@@ -45,7 +45,7 @@ pub fn search(num_hands: usize, whacks: &HashMap<Whacker, Vec<Duration>>) -> Sea
     whacker_assignment.sort_by_key(|whackers_in_hand| whackers_in_hand.first().map(|x| *x));
 
     SearchResult {
-        whackers: whacker_assignment,
+        hand_assignment: whacker_assignment,
         best_score: hand_assignment.score(),
         duration: start.elapsed(),
     }
