@@ -1,15 +1,12 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 
 use itertools::Itertools;
 
-use crate::music_xml::MusicXmlScore;
-
-mod assignment;
-mod note;
-mod search;
+use crate::{assign::Assignment, music_xml::MusicXmlScore};
 
 mod assign;
 mod music_xml;
+mod note;
 
 fn main() -> anyhow::Result<()> {
     // Get the input file path
@@ -25,17 +22,17 @@ fn main() -> anyhow::Result<()> {
     println!("{} boomwhackers required", score.whacks.len());
     println!();
 
-    // Start searching for good assignments (for 14 hands)
-    // TODO: Make number of hands no longer hard-coded
-    let result = crate::search::search(14, &score.whacks);
-    let max_num_whackers_in_left_hand = result
-        .hand_assignment
+    // Start searching for good assignments (for seven players)
+    let search_start = Instant::now();
+    // TODO: Make number of players no longer hard-coded
+    let assignment = Assignment::new(&score, 7, 0);
+    let max_num_whackers_in_left_hand = assignment
+        .players
         .iter()
-        .step_by(2)
-        .map(|l| l.len())
+        .map(|(left, _right)| left.len())
         .max()
         .unwrap();
-    for (left, right) in result.hand_assignment.iter().tuples() {
+    for (left, right) in &assignment.players {
         for _ in 0..(max_num_whackers_in_left_hand - left.len()) {
             print!("     ");
         }
@@ -51,7 +48,8 @@ fn main() -> anyhow::Result<()> {
     println!();
     println!(
         "Found best score of {:.3} in {:.2?}",
-        result.best_score, result.duration
+        assignment.score,
+        search_start.elapsed()
     );
 
     Ok(())

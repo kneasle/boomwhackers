@@ -5,10 +5,12 @@ use std::fmt::{Debug, Display, Formatter};
 #[repr(transparent)]
 pub struct Note {
     /// Semitones above C0
-    semis_above_c0: i8,
+    pub semis_above_c0: i8,
 }
 
 impl Note {
+    pub const C0: Note = Note { semis_above_c0: 0 };
+
     pub fn from_note(octave: i8, note_name: &str, alter: i8) -> Option<Self> {
         let note_semitones_from_c = match note_name {
             "C" => 0i8,
