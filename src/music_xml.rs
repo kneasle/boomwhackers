@@ -291,8 +291,14 @@ impl MusicXmlScore {
         notes.extend(left_hand.iter().map(|note| (*note, Hand::Left)));
         notes.extend(right_hand.iter().map(|note| (*note, Hand::Right)));
         notes.sort_by_key(|(note, _)| Reverse(*note));
+        // Decide which notes need to be coloured
+        let mut coloured_notes = HashMap::<usize, Hand>::new();
+        for &(note, hand) in &notes {
+            for whack in &self.whacks[&note] {
+                coloured_notes.insert(whack.chord_note_idx, hand);
+            }
+        }
         // Decide which notes need `<lyric>` tags
-        // TODO: Colour the notes themselves
         let mut lyric_locations = HashMap::<usize, Vec<(Note, Hand)>>::new();
         for &(note, hand) in &notes {
             for whack in &self.whacks[&note] {
@@ -313,6 +319,11 @@ impl MusicXmlScore {
                         assert!(note_elem.find("pitch").is_none());
                         continue; // Skip rests
                     }
+                    // Colour the note
+                    let colour = coloured_notes
+                        .get(&note_idx)
+                        .map_or("#000000", |hand| hand.colour());
+                    note_elem.set_attr("color", colour);
                     // Remove any existing `<lyric>` tags
                     // TODO: Add `retain_children` to `elementtree`
                     let indices_of_lyrics = note_elem
@@ -350,8 +361,8 @@ enum Hand {
 impl Hand {
     fn colour(self) -> &'static str {
         match self {
-            Hand::Left => "#ff7700",
-            Hand::Right => "#007777",
+            Hand::Left => "#ff0000",
+            Hand::Right => "#00aa00",
         }
     }
 }
