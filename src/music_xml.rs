@@ -1,6 +1,7 @@
 //! Code for loading/modifying/saving MusicXML files.
 
 use std::{
+    cmp::Reverse,
     collections::HashMap,
     ffi::OsStr,
     fs::File,
@@ -10,6 +11,7 @@ use std::{
 };
 
 use anyhow::Context;
+use itertools::Itertools;
 use ordered_float::OrderedFloat;
 
 use crate::note::Note;
@@ -272,5 +274,84 @@ impl Timestamp {
 impl std::fmt::Debug for Timestamp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:>6.2}s", self.secs)
+    }
+}
+
+///////////////////////////////
+// CREATING ANNOTATED SCORES //
+///////////////////////////////
+
+impl MusicXmlScore {
+    /// Returns MusicXML to describe this `MusicXmlScore`, with the notes of the given
+    /// `{left,right}_hand`s annotated with lyric marks.
+    pub fn annotated_xml(&self, left_hand: &[Note], right_hand: &[Note]) -> String {
+        // We label notes sorted from highest to lowest (because, in MusicXML, lyric marks are
+        // written from top to bottom, and we want the highest notes to be at the top).
+        let mut notes = Vec::new();
+        notes.extend(left_hand.iter().map(|note| (*note, Hand::Left)));
+        notes.extend(right_hand.iter().map(|note| (*note, Hand::Right)));
+        notes.sort_by_key(|(note, _)| Reverse(*note));
+        // Decide which notes need `<lyric>` tags
+        // TODO: Colour the notes themselves
+        let mut lyric_locations = HashMap::<usize, Vec<(Note, Hand)>>::new();
+        for &(note, hand) in &notes {
+            for whack in &self.whacks[&note] {
+                lyric_locations
+                    .entry(whack.chord_note_idx)
+                    .or_default()
+                    .push((note, hand));
+            }
+        }
+        // Traverse the XML tree, modifying it so that the only lyric marks are those of the notes
+        // played by this player
+        let mut new_tree = self.tree.clone();
+        let mut note_idx = 0;
+        for part in new_tree.find_all_mut("part") {
+            for measure in part.children_mut() {
+                for note_elem in measure.children_mut().filter(|c| c.tag().name() == "note") {
+                    if note_elem.find("rest").is_some() {
+                        assert!(note_elem.find("pitch").is_none());
+                        continue; // Skip rests
+                    }
+                    // Remove any existing `<lyric>` tags
+                    // TODO: Add `retain_children` to `elementtree`
+                    let indices_of_lyrics = note_elem
+                        .children()
+                        .positions(|elem| elem.tag().name() == "lyric")
+                        .collect_vec();
+                    for idx in indices_of_lyrics.into_iter().rev() {
+                        note_elem.remove_child(idx);
+                    }
+                    // Add our own lyric tags
+                    for (note, hand) in lyric_locations.get(&note_idx).unwrap_or(&Vec::new()) {
+                        let lyric_elem = note_elem
+                            .append_new_child("lyric")
+                            .set_attr("color", hand.colour())
+                            .set_attr("number", "1");
+                        lyric_elem.append_new_child("syllabic").set_text("single");
+                        lyric_elem.append_new_child("text").set_text(note.name());
+                    }
+                    // Update the `note_idx` now that we've finished with this note
+                    note_idx += 1;
+                }
+            }
+        }
+        // Return `new_tree` as an XML string
+        new_tree.to_string().unwrap()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Hand {
+    Left,
+    Right,
+}
+
+impl Hand {
+    fn colour(self) -> &'static str {
+        match self {
+            Hand::Left => "#ff7700",
+            Hand::Right => "#007777",
+        }
     }
 }

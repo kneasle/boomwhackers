@@ -56,5 +56,9 @@ fn main() -> anyhow::Result<()> {
         search_start.elapsed()
     );
 
+    // Construct an annotated score for the first player
+    let xml = score.annotated_xml(&assignment.players[0].0, &assignment.players[0].1);
+    std::fs::write("out.musicxml", xml.as_bytes())?;
+
     Ok(())
 }
