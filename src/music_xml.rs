@@ -18,7 +18,17 @@ use crate::note::Note;
 #[derive(Debug)]
 pub struct MusicXmlScore {
     tree: elementtree::Element,
-    pub whacks: HashMap<Note, Vec<Timestamp>>, // TODO: Not pub
+    pub whacks: HashMap<Note, Vec<Whack>>, // TODO: Not pub
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct Whack {
+    pub timestamp: Timestamp,
+    /// The 0-based index of the `<note>` tag in the source XML `tree` (i.e. if `note_idx = 5`,
+    /// then there are 5 `<note>` tags before the one representing this `Whack`).
+    note_idx: usize,
+    /// The `note_idx` of the first `<note>` in the chord containing this `Whack`
+    chord_note_idx: usize,
 }
 
 ///////////////////
@@ -82,11 +92,12 @@ impl MusicXmlScore {
 
 /// Walk a tree of XML [`Element`](elementtree::Element)s and determine at what times each note is
 /// played.
-fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Note, Vec<Timestamp>>> {
-    let mut whacks = HashMap::<Note, Vec<Timestamp>>::new();
+fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Note, Vec<Whack>>> {
+    let mut whacks = HashMap::<Note, Vec<Whack>>::new();
 
     // Stores `(<duration of new bpm>, <new bpm>)`
     let mut bpm_changes = Vec::<(Timestamp, f64)>::new();
+    let mut whacks_loaded_so_far = 0;
     for (part_idx, part) in tree.find_all("part").enumerate() {
         // MusicXML expresses all its note values as an integer multiple of some 'division' value
         // (presumably to avoid floating point errors).  For each part, this is stored in the
@@ -100,6 +111,7 @@ fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Note, Vec<
 
         // Extract the note names
         let mut current_chord_start = Timestamp::ZERO;
+        let mut current_chord_note_idx = whacks_loaded_so_far;
         let mut next_chord_start = Timestamp::ZERO;
         for (measure_idx, measure) in part.children().enumerate() {
             let measure_name = format!("measure {} of part {}", measure_idx + 1, part_idx + 1);
@@ -126,6 +138,8 @@ fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Note, Vec<
                             &bpm_changes,
                             &mut next_chord_start,
                             &mut current_chord_start,
+                            &mut current_chord_note_idx,
+                            &mut whacks_loaded_so_far,
                             &mut whacks,
                         )
                         .ok_or_else(|| {
@@ -145,6 +159,7 @@ fn load_whacks(tree: &elementtree::Element) -> anyhow::Result<HashMap<Note, Vec<
     Ok(whacks)
 }
 
+// TODO: Wrap the context into a struct
 #[must_use]
 fn add_whack(
     elem: &elementtree::Element,
@@ -152,7 +167,9 @@ fn add_whack(
     bpm_changes: &[(Timestamp, f64)],
     next_chord_start: &mut Timestamp,
     current_chord_start: &mut Timestamp,
-    whacks: &mut HashMap<Note, Vec<Timestamp>>,
+    chord_note_idx: &mut usize,
+    whacks_loaded_so_far: &mut usize,
+    whacks: &mut HashMap<Note, Vec<Whack>>,
 ) -> Option<()> {
     // Check that multiple voicings aren't being used
     let voice = match elem.find("voice") {
@@ -169,6 +186,7 @@ fn add_whack(
         // We're starting a chord (which may have only one note), so mark that
         // the *next* note will come after this one
         *current_chord_start = *next_chord_start;
+        *chord_note_idx = *whacks_loaded_so_far;
         next_chord_start.secs.0 += note_duration.as_secs_f64();
     }
 
@@ -183,10 +201,16 @@ fn add_whack(
                 Some(alter_elem) => alter_elem.text().parse::<i8>().ok()?,
                 None => 0,
             };
+            let whack = Whack {
+                timestamp: *current_chord_start,
+                note_idx: *whacks_loaded_so_far,
+                chord_note_idx: *chord_note_idx,
+            };
+            *whacks_loaded_so_far += 1;
             whacks
                 .entry(Note::from_note(octave, note_name, alter)?)
                 .or_default()
-                .push(*current_chord_start);
+                .push(whack);
         }
         // If a 'note' has no pitch, it must be a rest
         None => assert!(elem.find("rest").is_some()),

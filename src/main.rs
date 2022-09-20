@@ -17,7 +17,11 @@ fn main() -> anyhow::Result<()> {
     // Load the MusicXML file and extract the whacks
     let score = MusicXmlScore::load_file(input_file_path)?;
     for (whacker, times) in score.whacks.iter().sorted_by_key(|(w, _)| *w) {
-        println!("{:>3}: {:.2?}", whacker.name(), times);
+        println!(
+            "{:>3}: {:.2?}",
+            whacker.name(),
+            times.into_iter().map(|w| w.timestamp).collect_vec()
+        );
     }
     println!("{} boomwhackers required", score.whacks.len());
     println!();

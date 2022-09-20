@@ -20,7 +20,7 @@ pub struct Assignment {
 
 impl Assignment {
     pub fn new(music: &MusicXmlScore, num_players: usize, seed: u64) -> Self {
-        let fast_assignment = FastAssignment::search(music, num_players, seed);
+        let fast_assignment = FastAssignment::from_search(music, num_players, seed);
         Self {
             score: fast_assignment.score(music),
             players: fast_assignment
@@ -56,7 +56,7 @@ struct FastAssignment {
 
 impl FastAssignment {
     /// Search for an `Assignment` which works well for the given [`MusicXmlScore`].
-    fn search(music: &MusicXmlScore, num_players: usize, seed: u64) -> Self {
+    fn from_search(music: &MusicXmlScore, num_players: usize, seed: u64) -> Self {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
         // Run 100 runs of `gradient_ascent`, each starting from a random assignment
         let mut assignment = (0..100)
@@ -104,6 +104,7 @@ impl FastAssignment {
         let num_hands = num_players * 2;
         // Shuffle the `WhackerIdx`s to create the random starting assignment
         let mut whackers = music.whacks.keys().copied().collect_vec();
+        whackers.sort(); // Makes search deterministic despite nondeterminism of `HashMap::keys()`
         whackers.shuffle(rng);
         // Determine how many whackers must be given to each hand (with a few hands taking one
         // extra to make the difference).  I.e. we assign the same number of whackers to all the
@@ -168,11 +169,11 @@ fn score_for_hand(whackers_in_hand: &[Note], music: &MusicXmlScore) -> f64 {
     let mut score = 0.0;
 
     // If there are at least two whackers that have to be played by this hand, then we need to
-    // detect how long the player has to swap them.  Since the `Duration` vectors are sorted,
-    // we can detect swaps by merging the lists of times (like in merge sort) and keeping track
-    // of how many times we have to switch.
+    // detect how long the player has to swap them.  Since the `Duration` vectors are sorted, we
+    // can detect swaps by merging the lists of times (like in merge sort) and counting how many
+    // times we had to switch between those lists.
 
-    let mut whack_time_iterators = whackers_in_hand
+    let mut whack_iterators = whackers_in_hand
         .iter()
         .map(|note| music.whacks[note].iter().peekable())
         .collect_vec();
@@ -187,8 +188,9 @@ fn score_for_hand(whackers_in_hand: &[Note], music: &MusicXmlScore) -> f64 {
         // Determine which boomwhacker is the next to play
         let mut best_next_time = Timestamp::MAX;
         let mut next_iter_idx = None;
-        for (iter_idx, times) in whack_time_iterators.iter_mut().enumerate() {
-            if let Some(&&next_time) = times.peek() {
+        for (iter_idx, whack) in whack_iterators.iter_mut().enumerate() {
+            if let Some(next_whack) = whack.peek() {
+                let next_time = next_whack.timestamp;
                 if next_time < best_next_time {
                     best_next_time = next_time;
                     next_iter_idx = Some(iter_idx);
@@ -202,8 +204,8 @@ fn score_for_hand(whackers_in_hand: &[Note], music: &MusicXmlScore) -> f64 {
 
         // Consume the next hit from the corresponding iterator
         assert_eq!(
-            whack_time_iterators[next_iter_idx].next(),
-            Some(&best_next_time)
+            whack_iterators[next_iter_idx].next().map(|w| w.timestamp),
+            Some(best_next_time)
         );
 
         // Update score if this hit requires us to switch boomwhackers
