@@ -11,9 +11,14 @@ mod note;
 
 fn main() -> anyhow::Result<()> {
     // Get the input file path
-    let input_file_path: PathBuf = std::env::args()
-        .nth(1)
+    let mut args = std::env::args().skip(1);
+    let input_file_path: PathBuf = args
+        .next()
         .expect("Expected first arg to be the file-name")
+        .into();
+    let output_dir: PathBuf = args
+        .next()
+        .expect("Expected second arg to be output dir")
         .into();
     // Load the MusicXML file and extract the whacks
     let score = MusicXmlScore::load_file(input_file_path)?;
@@ -41,15 +46,9 @@ fn main() -> anyhow::Result<()> {
         search_start.elapsed()
     );
 
-    // Create temporary directories for working with files
-    let temp_dir = PathBuf::from("./boomwhackers/");
-    let music_xml_dir = temp_dir.join("music_xml");
-    let pdf_dir = temp_dir.join("pdfs");
-    std::fs::create_dir_all(&music_xml_dir).context("Couldn't create musicXML directory")?;
-    std::fs::create_dir_all(&pdf_dir).context("Couldn't create pdf directory")?;
     // Construct musicXML files for each player
     for (idx, (left_hand, right_hand)) in assignment.players.iter().enumerate() {
-        let music_xml_path = music_xml_dir.join(&format!("player-{idx}.musicxml"));
+        let music_xml_path = output_dir.join(&format!("player-{idx}.musicxml"));
         let xml = score.annotated_xml(left_hand, right_hand);
         std::fs::write(&music_xml_path, xml.as_bytes())?;
     }
@@ -57,30 +56,15 @@ fn main() -> anyhow::Result<()> {
     let mut conversion_jobs = Vec::new();
     let mut pdf_paths = Vec::new();
     for player_num in 0..num_players {
-        let music_xml_path = music_xml_dir.join(&format!("player-{player_num}.musicxml"));
-        let pdf_path = pdf_dir.join(&format!("player-{player_num}.pdf"));
+        let music_xml_path = output_dir.join(&format!("player-{player_num}.musicxml"));
+        let pdf_path = output_dir.join(&format!("player-{player_num}.pdf"));
         conversion_jobs.push(format!(
             r#"{{ "in": {music_xml_path:?}, "out": {pdf_path:?} }}"#
         ));
         pdf_paths.push(pdf_path);
     }
     let jobs_json = format!("[\n  {}\n]", conversion_jobs.iter().join(",\n  "));
-    let musescore_job_path = temp_dir.join("convert.json");
-    std::fs::write(&musescore_job_path, jobs_json.as_bytes())?;
-    // Bulk-convert musicXML files to PDFs (i.e. create one PDF per player)
-    std::process::Command::new("musescore3")
-        .args(["-j", musescore_job_path.as_os_str().to_str().unwrap()])
-        .spawn()?
-        .wait()?;
-    // Combine these PDFs into one large PDF
-    std::process::Command::new("pdftk")
-        .args(pdf_paths)
-        .args(["cat", "output"])
-        .args(["combined.pdf"])
-        .spawn()?
-        .wait()?;
-    // Delete the temp working files
-    std::fs::remove_dir_all(temp_dir)?;
+    std::fs::write(&output_dir.join("jobs.json"), jobs_json.as_bytes())?;
 
     Ok(())
 }
