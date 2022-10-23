@@ -19,7 +19,7 @@ pub struct Assignment {
 }
 
 impl Assignment {
-    pub fn new(music: &MusicXmlScore, num_players: usize, seed: u64) -> Self {
+    pub fn search(music: &MusicXmlScore, num_players: usize, seed: u64) -> Self {
         let fast_assignment = FastAssignment::from_search(music, num_players, seed);
         Self {
             score: fast_assignment.score(music),
@@ -34,6 +34,30 @@ impl Assignment {
                 })
                 .collect_vec(),
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn print(&self) {
+        let max_num_whackers_in_left_hand = self
+            .players
+            .iter()
+            .map(|(left, _right)| left.len())
+            .max()
+            .unwrap();
+        for (left, right) in &self.players {
+            for _ in 0..(max_num_whackers_in_left_hand - left.len()) {
+                print!("     ");
+            }
+            for w in left {
+                print!("{:>3}  ", w.to_string());
+            }
+            print!("|");
+            for w in right {
+                print!("  {:>3}", w.to_string());
+            }
+            println!();
+        }
+        println!();
     }
 }
 
