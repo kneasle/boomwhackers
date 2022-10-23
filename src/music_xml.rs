@@ -295,7 +295,7 @@ impl MusicXmlScore {
         let mut coloured_notes = HashMap::<usize, Hand>::new();
         for &(note, hand) in &notes {
             for whack in &self.whacks[&note] {
-                coloured_notes.insert(whack.chord_note_idx, hand);
+                coloured_notes.insert(whack.note_idx, hand);
             }
         }
         // Decide which notes need `<lyric>` tags
